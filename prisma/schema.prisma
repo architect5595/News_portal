@@ -1,0 +1,68 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ✅ SQLite 호환 설계
+// - SQLite + Prisma 5.x 환경에서는 enum 타입이 지원되지 않아 category는 String으로 저장합니다.
+// - 허용 카테고리 값은 lib/categories.ts (CategoryKey)에서 앱 레벨로 제한합니다.
+
+model NewsItem {
+  id          String   @id @default(cuid())
+  source      String
+  sourceId    String?  // 선택: 어떤 NewsSource에서 들어왔는지 추적
+  category    String   @default("ETC")
+
+  title       String
+  description String?
+  url         String   @unique
+  publishedAt DateTime?
+  imageUrl    String?
+
+  // 누적 조회수(전체)
+  viewCount   Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  views       NewsViewEvent[]
+  sourceRef   NewsSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([viewCount])
+  @@index([publishedAt])
+  @@index([category])
+  @@index([sourceId])
+}
+
+model NewsViewEvent {
+  id         String   @id @default(cuid())
+  newsItemId String
+  viewedAt   DateTime @default(now())
+
+  newsItem   NewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+
+  @@index([viewedAt])
+  @@index([newsItemId])
+  @@index([newsItemId, viewedAt])
+}
+
+// ✅ 사용자가 직접 "뉴스 채널(피드)"를 추가/삭제/비활성화 가능하도록 하는 테이블
+model NewsSource {
+  id        String   @id @default(cuid())
+  name      String
+  url       String   @unique
+  category  String   @default("ETC")
+  enabled   Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items     NewsItem[]
+
+  @@index([enabled])
+  @@index([category])
+}
